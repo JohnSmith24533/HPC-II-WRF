@@ -37,3 +37,8 @@ wrfout_d*
 rsl.out.*
 rsl.error.*
 *.log
+
+# CPU benchmark dependencies, frozen inputs, builds and golden output
+.wrf-cpu/
+phys/physics_mmm/
+perf/wrf_cpu/__pycache__/

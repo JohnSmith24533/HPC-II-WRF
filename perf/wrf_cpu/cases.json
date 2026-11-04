@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "branch": "perf/wrf-cpu",
+  "baseline_commit": "f52c197ed",
+  "cases": {
+    "b_wave": {
+      "source": "em_b_wave",
+      "grid": [
+        41,
+        81,
+        65
+      ],
+      "dt": 600,
+      "full_seconds": 432000,
+      "short_seconds": 3600,
+      "history_seconds": 21600,
+      "paths": [
+        "advection",
+        "RK3",
+        "dry dynamics"
+      ],
+      "physics": {
+        "mp_physics": 0,
+        "ra_lw_physics": 0,
+        "ra_sw_physics": 0,
+        "sf_sfclay_physics": 0,
+        "sf_surface_physics": 0,
+        "bl_pbl_physics": 0,
+        "cu_physics": 0
+      }
+    },
+    "quarter_ss": {
+      "source": "em_quarter_ss",
+      "grid": [
+        42,
+        42,
+        41
+      ],
+      "dt": 12,
+      "full_seconds": 3600,
+      "short_seconds": 120,
+      "history_seconds": 600,
+      "paths": [
+        "Kessler warm rain",
+        "convection",
+        "TKE mixing"
+      ],
+      "physics": {
+        "mp_physics": 1,
+        "ra_lw_physics": 0,
+        "ra_sw_physics": 0,
+        "sf_sfclay_physics": 0,
+        "sf_surface_physics": 0,
+        "bl_pbl_physics": 0,
+        "cu_physics": 0
+      }
+    },
+    "les": {
+      "source": "em_les",
+      "grid": [
+        40,
+        40,
+        40
+      ],
+      "dt": 1,
+      "full_seconds": 3600,
+      "short_seconds": 60,
+      "history_seconds": 600,
+      "paths": [
+        "Deardorff TKE",
+        "SGS mixing",
+        "surface heat flux 0.24 K m/s"
+      ],
+      "physics": {
+        "mp_physics": 0,
+        "ra_lw_physics": 0,
+        "ra_sw_physics": 0,
+        "sf_sfclay_physics": 1,
+        "sf_surface_physics": 0,
+        "bl_pbl_physics": 0,
+        "cu_physics": 0
+      },
+      "omitted_inactive_history": [
+        "LH"
+      ],
+      "omission_reason": "isfflx=2 is converted to l_isfflx=false by module_sf_sfclayrev.F; MMM sf_sfclayrev skips LH assignment, then wrapper copies uninitialized lh_hv. Dry LES heat forcing is tke_heat_flux=0.24, not LH."
+    },
+    "convrad": {
+      "source": "em_convrad",
+      "grid": [
+        101,
+        101,
+        35
+      ],
+      "dt": 5,
+      "full_seconds": 3600,
+      "short_seconds": 600,
+      "history_seconds": 600,
+      "paths": [
+        "WSM6",
+        "RRTMG LW/SW",
+        "YSU"
+      ],
+      "physics": {
+        "mp_physics": 6,
+        "ra_lw_physics": 4,
+        "ra_sw_physics": 4,
+        "sf_sfclay_physics": 1,
+        "sf_surface_physics": 1,
+        "bl_pbl_physics": 1,
+        "cu_physics": 0
+      }
+    },
+    "conus12": {
+      "source": "em_real",
+      "grid": [
+        425,
+        300,
+        50
+      ],
+      "dt": 72,
+      "full_seconds": 43200,
+      "short_seconds": 720,
+      "history_seconds": 3600,
+      "paths": [
+        "CONUS physics suite",
+        "MPI",
+        "NetCDF I/O"
+      ],
+      "url": "https://www2.mmm.ucar.edu/wrf/users/benchmark/v44/v4.4_bench_conus12km.tar.gz",
+      "physics": {
+        "mp_physics": 8,
+        "ra_lw_physics": 4,
+        "ra_sw_physics": 4,
+        "sf_sfclay_physics": 2,
+        "sf_surface_physics": 2,
+        "bl_pbl_physics": 2,
+        "cu_physics": 6
+      },
+      "restart_initial_history": false,
+      "restart_history_reason": "Use official write_hist_at_0h_rst=false: NOAHRES, U10E and V10E are history diagnostics without restart storage and are reconstructed by the next model step. Compare every field at all six computed hourly output times."
+    }
+  }
+}
