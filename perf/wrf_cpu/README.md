@@ -321,3 +321,19 @@ CONUS12單步／短程也通過，短程17.919秒僅為診斷；full因可用3.7
 保留來源路徑與內容、所有失敗／中止輸出、既有C011資料、6份raw差異checkpoint及原始參考；逐檔SHA與操作journal可稽核。
 清理後當次保守可用量16.538GB，後續啟動仍重新檢查原14.6GB full／7.1GB restart門檻。
 C012使用C011相同payload與provenance另建CONUS12群組，執行原始完整流程；僅退役核可後新建且所有驗證已通過、已無restart依賴的科學檔案。
+
+
+方案B後的實測：C012第一輪CONUS12 full完成600步／13份history／兩份checkpoint，
+2691項原始bitwise比較與兩份raw checkpoint均通過，單次耗時113.577秒。
+隨後restart雖完成300步，最後history與checkpoint讀回發生HDF錯誤，整組驗證失敗；
+因此沒有三次full中位數，也不更新五組正式分數。失敗資料與第一輪full均保留。
+事後檢查確認前5份restart history的1035項比較一致，最後checkpoint僅3695bytes且HDF metadata不完整；
+容量壓力與現象相符，但未取得原始寫入errno，不能認定唯一原因。
+
+P009已完成目前版本四組ideal的full profiling與原始／候選restart比對，
+16個取樣rank均有足夠樣本、零遺失；profiling耗時不計分。
+目前copy4、memmove與動力計算仍值得進一步量測。報告位於
+.wrf-cpu/experiments/P009-current-ideal-profile-setup/analysis.json。
+新成功輸出已依核可政策留存SHA／proof journal後退役，raw差異checkpoint保留。
+最新實際用量即使不計預留，也只剩約11.93GB，低於原14.6GB full門檻；
+後續完整CONUS12需增加容量餘裕，原五組正式幾何平均仍為1.1805×。
