@@ -1,0 +1,11 @@
+{
+  "conus12": [
+    {"ranks": 112, "processor_grid": [14, 8]},
+    {"ranks": 224, "processor_grid": [16, 14]},
+    {"ranks": 448, "processor_grid": [28, 16]},
+    {"ranks": 672, "processor_grid": [32, 21]},
+    {"ranks": 840, "processor_grid": [35, 24]},
+    {"ranks": 900, "processor_grid": [36, 25]},
+    {"ranks": 1120, "processor_grid": [40, 28]}
+  ]
+}

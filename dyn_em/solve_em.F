@@ -1265,9 +1265,20 @@ BENCH_START(set_phys_bc2_tim)
 BENCH_END(set_phys_bc2_tim)
      small_steps : DO iteration = 1 , number_of_small_timesteps
 
-       ! Boundary condition time (or communication time).  
+       ! B was exchanged before this loop. In a fully distributed doubly
+       ! periodic domain, physical BCs cannot modify its halo values. The
+       ! fields changed by an acoustic step are refreshed by B3 below;
+       ! the remaining B fields are unchanged until small_step_finish.
+       ! Keep the original exchange for single-axis patches and for
+       ! polar filtering or specified/nested boundary updates.
 #ifdef DM_PARALLEL
+       IF (.NOT. (config_flags%periodic_x .AND. config_flags%periodic_y .AND. &
+                  ntasks_x > 1 .AND. ntasks_y > 1 .AND.                     &
+                  .NOT. config_flags%polar .AND.                           &
+                  .NOT. config_flags%specified .AND.                       &
+                  .NOT. config_flags%nested)) THEN
 #      include "PERIOD_BDY_EM_B.inc"
+       ENDIF
 #endif
 
        !$OMP PARALLEL DO   &

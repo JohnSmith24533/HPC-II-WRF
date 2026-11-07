@@ -143,6 +143,29 @@ class VerificationTests(unittest.TestCase):
                 ds['Times'][2,:]=np.array(list('0001-01-01_00:00:36'),dtype='S1')
             self.assertFalse(verify.compare(c,r)['passed'])
 
+    def test_parallel_comparison_preserves_late_failure_and_every_metric(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Path(tmp)/'c'; r=Path(tmp)/'r'; c.mkdir(); r.mkdir()
+            cp=self.fixture(c); self.fixture(r)
+            with nc.Dataset(cp,'a') as ds:
+                ds['U'][2,1,1,1]=1.
+            serial=verify.compare(c,r,workers=1)
+            parallel=verify.compare(c,r,workers=2)
+            self.assertFalse(parallel['passed'])
+            self.assertEqual(serial,parallel)
+            with nc.Dataset(cp,'a') as ds:
+                ds['U'][2,1,1,1]=0.
+            self.assertEqual(verify.compare(c,r,workers=1),verify.compare(c,r,workers=2))
+
+    def test_parallel_worker_nonfinite_failure_propagates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c=Path(tmp)/'c'; r=Path(tmp)/'r'; c.mkdir(); r.mkdir()
+            cp=self.fixture(c); self.fixture(r)
+            with nc.Dataset(cp,'a') as ds:
+                ds['U'][2,1,1,1]=np.inf
+            with self.assertRaisesRegex(ValueError,'nonfinite'):
+                verify.compare(c,r,workers=2)
+
 
 if __name__=='__main__':
     unittest.main()

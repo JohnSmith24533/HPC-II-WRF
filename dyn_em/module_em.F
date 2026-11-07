@@ -2639,6 +2639,8 @@ SUBROUTINE bound_tke ( tke, tke_upper_bound,       &
   DO k=kts,kte-1
   DO i=its,min(ite,ide-1)
     tke(i,k,j) = min(tke_upper_bound,max(tke(i,k,j),0.))
+    ! Preserve the original limiter's positive-zero tie for native SIMD MAX.
+    IF (tke(i,k,j) == 0.) tke(i,k,j) = 0.
   ENDDO
   ENDDO
   ENDDO

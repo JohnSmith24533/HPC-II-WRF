@@ -1,0 +1,26 @@
+[
+  {
+    "name": "S004c-conus-full-recovery",
+    "result": "experiments/S004c-conus-full-recovery/results.json",
+    "sbatch": [
+      "--job-name=wrf-S004c-recovery", "--nodes=9", "--ntasks=1008",
+      "--ntasks-per-node=112", "--time=03:00:00",
+      "--output=.wrf-cpu/logs/S004c-%j.log", "perf/wrf_cpu/scaling.slurm",
+      "--label", "S004c-conus-full-recovery", "--cases", "conus12",
+      "--matrix", "perf/wrf_cpu/scaling-conus-recovery.json",
+      "--tiers", "full", "--repetitions", "1", "--discard-verified-output"
+    ]
+  },
+  {
+    "name": "S004b-conus-full",
+    "result": "experiments/S004b-conus-full/results.json",
+    "sbatch": [
+      "--job-name=wrf-S004b-full", "--nodes=10", "--ntasks=1120",
+      "--ntasks-per-node=112", "--time=03:00:00",
+      "--output=.wrf-cpu/logs/S004b-%j.log", "perf/wrf_cpu/scaling.slurm",
+      "--label", "S004b-conus-full", "--cases", "conus12",
+      "--matrix", "perf/wrf_cpu/scaling-conus-layout.json",
+      "--tiers", "full", "--repetitions", "1", "--discard-verified-output"
+    ]
+  }
+]

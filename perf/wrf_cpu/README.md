@@ -151,7 +151,94 @@ sbatch --output=.wrf-cpu/logs/candidate-%j.log perf/wrf_cpu/run.slurm \
   --install-real /absolute/path/to/candidate-real
 ```
 
-每次 `run.json` 保存總 wall time、每步計算時間序列／mean／median、MPI ranks、CPU host、
+每次 `run.json` 保存總 wall time、`Timing for main` 每步牆鐘時間序列／mean／median、MPI ranks、CPU host、
 Slurm job ID、輸入與執行檔雜湊；`check.json` / `compare.json` / `restart-compare.json`
 保存驗證證據。性能比較需使用相同機型、ranks、輸出頻率及輸入，並另外考慮 I/O 與系統
 負載；第一次 baseline 數據不代表統計顯著的加速比。
+
+目前 scaling／最佳化實驗記錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。主要效能指標為完整 WRF
+wall-clock seconds 除以驗證完成的 timestep 數。`Timing for main` 也涵蓋部分 I/O，並非純計算時間；
+不能與另列的 I/O 時間相加。選定 ranks 後，獨立重跑與 restart 全部通過才能另封存 `scaled-golden`，
+既有 `golden` 保留。`wrf_profile.py` 要求該封存參考存在，採樣執行不列入 speedup 證據。
+
+`select_finalists.py` 先依完整 scaling 結果挑選候選設定，再以獨立重跑的中位數選出每個案例的
+設定。`certify_scaled.py` 要求五個案例都有至少三次獨立完整執行及 bitwise 重跑證據，才會在
+選定 ranks、domain decomposition 與 MPI placement 下重新執行 single／short／full／restart
+及獨立 replay。理想化案例須使用單一節點，以保留 socket placement；CONUS 另配置所需節點。
+全部 40 次驗證成功後才發布 `scaled-golden`，後續 5× 幾何平均的 baseline 採獨立重跑中位數。
+
+Scaling 可用 `--discard-verified-output` 控制暫存用量：完成計時、執行檢查與全欄位比對後，
+先將輸出檔名、大小及 SHA-256 寫入 `retired-outputs.json`，再清理可重建的 history／checkpoint
+陣列；日誌、namelist、計時與完整比對報告保留。獨立重跑所需的第一份 history 會保留至最後一次
+比對完成，canonical baseline／replay、golden 及失敗證據受保護。此清理不納入 WRF 計時，也不會
+減少模擬中的輸出量。配額失敗與恢復紀錄見 `EXPERIMENTS.md` 的 S004a 段落。
+
+相同 CPU 型號仍可能有不同 NUMA／快取拓撲。比較效能前，透過 `WRF_HARDWARE_REFERENCE`
+指定已完成實驗的 `results.json`；scaling／certification 批次會先在每個配置節點執行
+`hardware.py`，核對 CPU、核心／socket、NUMA CPU 分布、最高頻率及 L3 cache，任一差異即停止。
+選擇 baseline 時也會拒絕同一案例混用不同硬體簽章。理想化案例採固定 2-NUMA 硬體，CONUS
+採固定 8-NUMA 節點組；每個案例的 baseline、profiling 與最佳化測量都必須使用對應硬體。
+初輪 NUMA 差異的診斷與重新量測見 `EXPERIMENTS.md` 的 H001／S003q 紀錄。
+後續 `certify_scaled.py`／`wrf_profile.py` 也會直接由選定／封存參考讀取硬體簽章並逐節點檢查，
+不依賴呼叫者設定額外環境變數。新 `run.json` 保存靜態硬體簽章，發布參考時 baseline 與 replay
+必須一致；這些檢查都在 WRF 計時之外。
+
+## 目前正式比較基準與已通過候選
+
+目前 baseline 採 S005m 獨立確認的原始版本最佳設定，每案至少三次完整執行的中位數；
+候選與 baseline 都以完整 wall-clock seconds / verified timestep 計算，包含啟動、初始化、
+原定 history 與兩份 checkpoint。每個案例的原始節點、核心預算與硬體簽章固定。
+
+| 案例 | baseline MPI ranks | baseline s/timestep | C005 s/timestep | speedup |
+|---|---:|---:|---:|---:|
+| b_wave | 32 | 0.023615 | 0.019216 | 1.229× |
+| quarter_ss | 16 | 0.023853 | 0.022552 | 1.058× |
+| les | 16 | 0.009725 | 0.008287 | 1.174× |
+| convrad | 80 | 0.030367 | 0.026565 | 1.143× |
+| conus12 | 840 | 0.430314 | 0.327340 | 1.315× |
+
+C005 已通過五個案例的 single／short／full／restart，以及每案三次完整計時；幾何平均為 **1.180476×**，5× 目標尚未達成。
+成績對應封存的 B009 O2 執行檔（短列 halo 原始位元複製、原有 TKE limiter 的正零 tie）與
+B004 無損壓縮器。正式證據是 `.wrf-cpu/experiments/C005-portable-pack/summary.json`；
+後續通訊、背景輸出與元件實驗見 [EXPERIMENTS.md](EXPERIMENTS.md)，診斷或取樣計時不列入此表。
+
+
+## 後續候選與可重現壓縮器來源
+
+C006（B021 native128）四個 ideal 案例已各通過 single／short／full／restart 與三次完整計時：
+
+| 案例 | C006 s/timestep | speedup |
+|---|---:|---:|
+| b_wave | 0.016565 | 1.426× |
+| quarter_ss | 0.016980 | 1.405× |
+| les | 0.007070 | 1.376× |
+| convrad | 0.022436 | 1.353× |
+
+C006 的 CONUS12 short 在十步後有56個變數時間／衍生量比較項目不一致，因此不能建立新的五案正式總分。
+C007（B022）僅恢復 Thompson 原始 GNU O2／x86-64 編譯方式，CONUS12 single 與 short 位元一致；
+full 尚未開始，因保守 quota 可用容量低於14.6GB門檻而停止。這些結果不能取代上節 C005 五案正式成績，
+也不能混用不同候選的各案最快值計算正式幾何平均。完整紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
+
+[fast_compress2.c](fast_compress2.c) 與 [fast_compress2.map](fast_compress2.map) 是已驗證 B004 的原始來源，
+只匯出 compress2，以 libdeflate 無損產生 zlib 串流；其他 zlib API 保留原庫，不改變 NetCDF4、shuffle 或壓縮等級2。
+版本固定 libdeflate 1.26，來源 https://codeload.github.com/ebiggers/libdeflate/tar.gz/refs/tags/v1.26，tar SHA256 `bba03fffc5538576213675ce6968fcff6ce2e67d82e4d5febea2d05f9f13cf85`。
+先在 compute allocation 依上游 CMake 建置 PIC static library，開啟並通過上游測試；
+假設 LIBDEFLATE_SOURCE、LIBDEFLATE_BUILD 指向已核對的來源與建置目錄：
+
+```bash
+source perf/wrf_cpu/env.sh
+cmake -S "$LIBDEFLATE_SOURCE" -B "$LIBDEFLATE_BUILD" -G Ninja \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DCMAKE_PREFIX_PATH="$NETCDF" -DLIBDEFLATE_BUILD_STATIC_LIB=ON \
+  -DLIBDEFLATE_BUILD_SHARED_LIB=OFF -DLIBDEFLATE_BUILD_TESTS=ON
+cmake --build "$LIBDEFLATE_BUILD" --parallel 8
+ctest --test-dir "$LIBDEFLATE_BUILD" --output-on-failure
+gcc -O3 -std=c11 -fPIC -shared perf/wrf_cpu/fast_compress2.c "$LIBDEFLATE_BUILD/libdeflate.a" \
+  -I"$LIBDEFLATE_SOURCE" -I"$NETCDF/include" -pthread -ldl \
+  -Wl,--version-script=perf/wrf_cpu/fast_compress2.map -o /tmp/fast-compress2.so
+python perf/wrf_cpu/check_fast_compress2.py --library /tmp/fast-compress2.so \
+  --report /tmp/fast-compress2-compatibility.json
+```
+
+相容性檢查包含真實原始 CONUS T／P／U／QRAIN shuffle chunks，所有 decoded bytes 必須完全相同；
+壓縮微測資的成績不等同完整 WRF 加速。正式候選仍須獨立通過五案、三次 full 與 restart 的全部檢查。

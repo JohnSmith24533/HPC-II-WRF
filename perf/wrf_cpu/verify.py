@@ -5,6 +5,8 @@ from contextlib import ExitStack
 import datetime as dt
 import hashlib
 import json
+import multiprocessing
+import os
 from pathlib import Path
 import re
 import sys
@@ -201,8 +203,40 @@ def metrics(candidate, reference, atol=0., rtol=0., bitwise=True):
             'bias':float(delta.mean()),'exceed_fraction':float(mismatch.mean()),'atol':atol,'rtol':rtol}
 
 
-def compare(candidate, reference, policy=None, overlap=False):
+def compare_frame(time, candidate, ci, reference, ri, policy):
+    errors, rows = [], []
+    with nc.Dataset(candidate) as cd, nc.Dataset(reference) as rd:
+        for name in sorted(set(cd.variables)&set(rd.variables)):
+            cv,rv = cd[name],rd[name]
+            if cv.dtype.kind not in 'iuf':
+                if not np.array_equal(field(cd,name,ci),field(rd,name,ri)):
+                    errors.append(f'{time}: nonnumeric field differs: {name}')
+                continue
+            tol = (policy or {}).get(name, {'atol':0,'rtol':0})
+            m = metrics(field(cd,name,ci),field(rd,name,ri),**tol,bitwise=policy is None)
+            rows.append({'time':time,'variable':name,'units':getattr(rv,'units',''),**m})
+            if not m['passed']:
+                errors.append(f'{time}: {name} differs')
+        cderived,rderived = derived(cd,ci),derived(rd,ri)
+        for name in cderived:
+            tol = (policy or {}).get(name, {'atol':0,'rtol':0})
+            m = metrics(cderived[name],rderived[name],**tol,bitwise=policy is None)
+            rows.append({'time':time,'variable':name,**m})
+            if not m['passed']:
+                errors.append(f'{time}: derived {name} differs')
+        cphys,rphys = diagnostics(cd,ci),diagnostics(rd,ri)
+        physical = {'candidate':cphys,'reference':rphys,
+                    'delta':{k:cphys[k]-rphys[k] if cphys[k] is not None and rphys[k] is not None else None for k in cphys.keys()&rphys.keys()}}
+    return time, errors, rows, physical
+
+
+def compare(candidate, reference, policy=None, overlap=False, workers=None):
     errors, rows, physical = [], [], {}
+    automatic_workers = workers is None
+    workers = int(os.environ.get('WRF_VERIFY_WORKERS','1')) if workers is None else workers
+    if type(workers) is not int or workers < 1:
+        raise ValueError('comparison workers must be a positive integer')
+    jobs = []
     with ExitStack() as stack:
         ca,cs = index(candidate, stack)
         ra,rs = index(reference, stack)
@@ -214,27 +248,21 @@ def compare(candidate, reference, policy=None, overlap=False):
             if time not in ra:
                 continue
             rd,ri = ra[time]
-            for name in sorted(set(cd.variables)&set(rd.variables)):
-                cv,rv = cd[name],rd[name]
-                if cv.dtype.kind not in 'iuf':
-                    if not np.array_equal(field(cd,name,ci),field(rd,name,ri)):
-                        errors.append(f'{time}: nonnumeric field differs: {name}')
-                    continue
-                tol = (policy or {}).get(name, {'atol':0,'rtol':0})
-                m = metrics(field(cd,name,ci),field(rd,name,ri),**tol,bitwise=policy is None)
-                rows.append({'time':time,'variable':name,'units':getattr(rv,'units',''),**m})
-                if not m['passed']:
-                    errors.append(f'{time}: {name} differs')
-            cderived,rderived = derived(cd,ci),derived(rd,ri)
-            for name in cderived:
-                tol = (policy or {}).get(name, {'atol':0,'rtol':0})
-                m = metrics(cderived[name],rderived[name],**tol,bitwise=policy is None)
-                rows.append({'time':time,'variable':name,**m})
-                if not m['passed']:
-                    errors.append(f'{time}: derived {name} differs')
-            cphys,rphys = diagnostics(cd,ci),diagnostics(rd,ri)
-            physical[time] = {'candidate':cphys,'reference':rphys,
-                              'delta':{k:cphys[k]-rphys[k] if cphys[k] is not None and rphys[k] is not None else None for k in cphys.keys()&rphys.keys()}}
+            jobs.append((time,cd.filepath(),ci,rd.filepath(),ri,policy))
+    # Close parent HDF5 handles before workers open their own files. Never fork
+    # live NetCDF/HDF5 state or split any array reduction across processes.
+    paths = {job[pos] for job in jobs for pos in (1,3)}
+    if automatic_workers and sum(Path(path).stat().st_size for path in paths) < 256*1024**2:
+        workers = 1  # Avoid process startup cost for tiny ideal-case reports.
+    if workers > 1 and len(jobs) > 1:
+        with multiprocessing.get_context('spawn').Pool(min(workers,len(jobs))) as pool:
+            compared = pool.starmap(compare_frame,jobs)
+    else:
+        compared = [compare_frame(*job) for job in jobs]
+    for time, frame_errors, frame_rows, frame_physical in compared:
+        errors.extend(frame_errors)
+        rows.extend(frame_rows)
+        physical[time] = frame_physical
     return {'passed':not errors,'errors':errors,'metrics':rows,'physical':physical,
             'mode':'bitwise' if policy is None else 'per-variable tolerance',
             'budget_note':'Mass/water/heat diagnostics are regression proxies; regional boundary fluxes and sources/sinks preclude unconditional conservation assertions.'}

@@ -25,8 +25,22 @@
             CALL f_pack_int_jik( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
           CASE ( DATA_ORDER_XZY )
+#if defined(RSL_LITE_FAST_IKJ)
+#ifdef _OPENMP
+            IF (INT(ie-is+1,8)*INT(ke-ks+1,8)*INT(je-js+1,8)*4_8 <= 65536_8) THEN
+#endif
+            CALL rsl_fast_pack_int_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
+     &                           jms, jme, kms, kme, ims, ime, curs )
+#ifdef _OPENMP
+            ELSE
             CALL f_pack_int_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
+            ENDIF
+#endif
+#else
+            CALL f_pack_int_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
+     &                           jms, jme, kms, kme, ims, ime, curs )
+#endif
           CASE ( DATA_ORDER_YZX )
             CALL f_pack_int_jki( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
@@ -56,8 +70,22 @@
             CALL f_pack_lint_jik( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
           CASE ( DATA_ORDER_XZY )
+#if defined(RSL_LITE_FAST_IKJ)
+#ifdef _OPENMP
+            IF (INT(ie-is+1,8)*INT(ke-ks+1,8)*INT(je-js+1,8)*8_8 <= 65536_8) THEN
+#endif
+            CALL rsl_fast_pack_lint_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
+     &                           jms, jme, kms, kme, ims, ime, curs )
+#ifdef _OPENMP
+            ELSE
             CALL f_pack_lint_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
+            ENDIF
+#endif
+#else
+            CALL f_pack_lint_ikj( inbuf, outbuf, js, je, ks, ke, is, ie,           &
+     &                           jms, jme, kms, kme, ims, ime, curs )
+#endif
           CASE ( DATA_ORDER_YZX )
             CALL f_pack_lint_jki( inbuf, outbuf, js, je, ks, ke, is, ie,           &
      &                           jms, jme, kms, kme, ims, ime, curs )
@@ -87,8 +115,22 @@
             CALL f_unpack_int_jik( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
           CASE ( DATA_ORDER_XZY )
+#if defined(RSL_LITE_FAST_IKJ)
+#ifdef _OPENMP
+            IF (INT(ie-is+1,8)*INT(ke-ks+1,8)*INT(je-js+1,8)*4_8 <= 65536_8) THEN
+#endif
+            CALL rsl_fast_unpack_int_ikj( inbuf, outbuf, js, je, ks, ke,                   &
+     &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+#ifdef _OPENMP
+            ELSE
             CALL f_unpack_int_ikj( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+            ENDIF
+#endif
+#else
+            CALL f_unpack_int_ikj( inbuf, outbuf, js, je, ks, ke,                   &
+     &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+#endif
           CASE ( DATA_ORDER_YZX )
             CALL f_unpack_int_jki( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
@@ -118,8 +160,22 @@
             CALL f_unpack_lint_jik( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
           CASE ( DATA_ORDER_XZY )
+#if defined(RSL_LITE_FAST_IKJ)
+#ifdef _OPENMP
+            IF (INT(ie-is+1,8)*INT(ke-ks+1,8)*INT(je-js+1,8)*8_8 <= 65536_8) THEN
+#endif
+            CALL rsl_fast_unpack_lint_ikj( inbuf, outbuf, js, je, ks, ke,                   &
+     &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+#ifdef _OPENMP
+            ELSE
             CALL f_unpack_lint_ikj( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+            ENDIF
+#endif
+#else
+            CALL f_unpack_lint_ikj( inbuf, outbuf, js, je, ks, ke,                   &
+     &                      is, ie, jms, jme, kms, kme, ims, ime, curs )
+#endif
           CASE ( DATA_ORDER_YZX )
             CALL f_unpack_lint_jki( inbuf, outbuf, js, je, ks, ke,                   &
      &                      is, ie, jms, jme, kms, kme, ims, ime, curs )

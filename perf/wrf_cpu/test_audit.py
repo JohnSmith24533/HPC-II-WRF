@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import audit
+import publish
 
 
 class ArtifactAuditTests(unittest.TestCase):
@@ -23,8 +25,10 @@ class ArtifactAuditTests(unittest.TestCase):
     def test_pristine_reference_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             base=Path(tmp); self.fixture(base)
-            with contextlib.redirect_stdout(io.StringIO()):
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output):
                 audit.audit(base)
+            self.assertEqual(json.loads(output.getvalue())['reference'],'golden')
 
     def test_corruption_of_each_artifact_is_rejected(self):
         for item in range(4):
@@ -33,6 +37,33 @@ class ArtifactAuditTests(unittest.TestCase):
                 paths[item].write_bytes(b'changed')
                 with self.assertRaises(RuntimeError):
                     audit.audit(base)
+
+    def test_separate_reference_does_not_use_original_seal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp); self.fixture(base)
+            (base/'golden').rename(base/'scaled-golden')
+            (base/'golden-manifest.sha256').rename(base/'scaled-golden-manifest.sha256')
+            with contextlib.redirect_stdout(io.StringIO()):
+                audit.audit(base,'scaled-golden')
+            (base/'scaled-golden'/'output').write_bytes(b'changed')
+            with self.assertRaises(RuntimeError):
+                audit.audit(base,'scaled-golden')
+
+    def test_publication_never_overwrites_reference_or_orphaned_seal(self):
+        for name in ('golden','scaled-golden'):
+            for existing in ('reference','seal'):
+                with self.subTest(name=name,existing=existing),tempfile.TemporaryDirectory() as tmp:
+                    base=Path(tmp)
+                    reference,seal=audit.reference_paths(base,name)
+                    reference.mkdir() if existing=='reference' else seal.write_text('sealed')
+                    with mock.patch.object(publish.run,'ART',base):
+                        with self.assertRaisesRegex(RuntimeError,'never overwrites'):
+                            publish.publish('first','replay',name)
+
+    def test_reference_name_cannot_escape_artifact_directory(self):
+        for name in ('../golden','nested/name','/tmp/golden','', '..'):
+            with self.subTest(name=name),self.assertRaises(ValueError):
+                audit.reference_paths('/tmp/artifacts',name)
 
 
 if __name__=='__main__':

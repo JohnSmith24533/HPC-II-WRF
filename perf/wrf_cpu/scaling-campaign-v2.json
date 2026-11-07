@@ -1,0 +1,23 @@
+[
+  {"name":"S001-scaling-screen","existing_job":"2012546","result":"experiments/S001-scaling-screen/results.json"},
+  {"name":"S002-multinode-screen","existing_job":"2012593","result":"experiments/S002-multinode-screen/results.json"},
+  {
+    "name":"S002b-layout-screen",
+    "result":"experiments/S002b-layout-screen/results.json",
+    "sbatch":[
+      "--job-name=wrf-S002b-layout","--nodes=10","--ntasks=1120","--ntasks-per-node=112","--time=01:00:00",
+      "--output=.wrf-cpu/logs/S002b-%j.log","perf/wrf_cpu/scaling.slurm",
+      "--label","S002b-layout-screen","--cases","conus12","--matrix","perf/wrf_cpu/scaling-conus-layout.json",
+      "--tiers","short","--repetitions","1"
+    ]
+  },
+  {
+    "name":"S003-ideal-full",
+    "result":"experiments/S003-ideal-full/results.json",
+    "sbatch":[
+      "--job-name=wrf-S003-full","--output=.wrf-cpu/logs/S003-%j.log","perf/wrf_cpu/scaling.slurm",
+      "--label","S003-ideal-full","--cases","b_wave","quarter_ss","les","convrad",
+      "--matrix","perf/wrf_cpu/scaling-ideal-full.json","--tiers","full","--repetitions","1"
+    ]
+  }
+]

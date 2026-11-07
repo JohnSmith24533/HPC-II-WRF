@@ -1013,6 +1013,15 @@ apply_target_source_properties(
                                 AS_PROPERTY COMPILE_OPTIONS
                               )
 
+# Keep the reference Thompson math for native CPU experiments.  A preferred
+# vector width does not prevent widened double libmvec calls in this source.
+if ( CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND
+     CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$" AND
+     WRF_EXTRA_FCFLAGS MATCHES "-march=native" )
+  set_property( SOURCE phys/module_mp_thompson.F APPEND PROPERTY
+                COMPILE_OPTIONS -O2 -march=x86-64 -mtune=generic )
+endif()
+
 target_compile_definitions( 
                             ${PROJECT_NAME}_Core
                             PRIVATE

@@ -18,10 +18,17 @@ import f90nml
 import netCDF4 as nc
 
 import verify
+import hardware
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = Path(os.environ.get('WRF_CPU_ARTIFACTS',ROOT/'.wrf-cpu')).resolve()
 CASES = json.loads((Path(__file__).with_name('cases.json')).read_text())['cases']
+
+
+@lru_cache(maxsize=1)
+def host_hardware():
+    return hardware.signature(json.loads(subprocess.check_output(
+        ['lscpu','-J'],text=True,env={**os.environ,'LC_ALL':'C'})))
 
 
 def digest(path):
@@ -131,8 +138,20 @@ def initialize(case):
     return dest
 
 
-def run_case(case,tier,label,ranks,install_ideal=None,install_real=None):
+def run_case(case,tier,label,ranks,install_ideal=None,install_real=None,mpi_options=(),processor_grid=None,threads=1,omp_tiles=None):
     cfg = CASES[case]
+    if type(threads) is not int or threads < 1:
+        raise ValueError('threads must be a positive integer')
+    if omp_tiles is not None:
+        omp_tiles=list(omp_tiles)
+        if len(omp_tiles)!=2 or any(type(n) is not int or n<1 for n in omp_tiles) or omp_tiles[0]*omp_tiles[1]!=threads:
+            raise ValueError('tile counts must be positive and match worker threads')
+    if processor_grid is not None:
+        processor_grid=list(processor_grid)
+        if len(processor_grid)!=2 or any(type(n) is not int or n<1 for n in processor_grid) or processor_grid[0]*processor_grid[1]!=ranks:
+            raise ValueError('processor grid must contain two positive factors of the MPI rank count')
+        if any(cfg['grid'][i]//processor_grid[i]<10 for i in (0,1)):
+            raise ValueError('processor grid violates WRF minimum 10-cell patch size')
     frozen = initialize(case)
     dest = ART/'runs'/label/case/tier
     install = (install_real or ART/'install-real') if case=='conus12' else (install_ideal or ART/'install-ideal')
@@ -140,7 +159,7 @@ def run_case(case,tier,label,ranks,install_ideal=None,install_real=None):
         # Resume only a verified completed run, never overwrite a failed or live run.
         if (dest/'check.json').exists() and json.loads((dest/'check.json').read_text())['passed']:
             previous = json.loads((dest/'run.json').read_text())
-            if previous['ranks'] != ranks or previous['executable_sha256'] != digest(install/'bin/wrf') or previous['frozen_inputs_sha256'] != digest(frozen/'inputs.json'):
+            if previous['ranks'] != ranks or previous['executable_sha256'] != digest(install/'bin/wrf') or previous['frozen_inputs_sha256'] != digest(frozen/'inputs.json') or previous.get('mpi_options',[]) != list(mpi_options) or previous.get('processor_grid') != processor_grid or previous.get('threads',1) != threads or previous.get('omp_tiles') != omp_tiles:
                 raise RuntimeError(f'provenance changed for completed run: {dest}; use a new label')
             checked = verify.execution(dest)
             if not checked['passed']:
@@ -173,6 +192,11 @@ def run_case(case,tier,label,ranks,install_ideal=None,install_real=None):
             raise RuntimeError(f'missing checkpoint {continuous/name}')
         (dest/name).symlink_to((continuous/name).resolve())
     set_times(nml,start,seconds,history,tier=='restart',full_seconds//2 if tier=='full' else None)
+    if processor_grid is not None:
+        nml['domains']['nproc_x'],nml['domains']['nproc_y']=processor_grid
+    if omp_tiles is not None:
+        nml['domains']['numtiles']=threads
+        nml['domains']['numtiles_x'],nml['domains']['numtiles_y']=omp_tiles
     history_at_start = tier!='restart' or cfg.get('restart_initial_history',True)
     nml['time_control']['write_hist_at_0h_rst'] = history_at_start
     if case in ('les','quarter_ss'):
@@ -192,17 +216,26 @@ def run_case(case,tier,label,ranks,install_ideal=None,install_real=None):
     if case=='convrad':
         required += ['SWDOWN','GLW','HFX','PBLH']
     executable = install/'bin/wrf'
-    meta = {'case':case,'tier':tier,'label':label,'ranks':ranks,'threads':1,'grid':cfg['grid'],
+    meta = {'case':case,'tier':tier,'label':label,'ranks':ranks,'threads':threads,'omp_tiles':omp_tiles,'grid':cfg['grid'],
             'omitted_inactive_history':cfg.get('omitted_inactive_history',[]),'expected_physics':cfg['physics'],'history_at_start':history_at_start,'dt':cfg['dt'],'history_seconds':history,'start':start.strftime(verify.STAMP),
             'end':(start+dt.timedelta(seconds=seconds)).strftime(verify.STAMP),'required':required,
             'executable':str(executable),'executable_sha256':digest(executable),
             'namelist_sha256':digest(dest/'namelist.input'),
             'frozen_inputs_sha256':digest(frozen/'inputs.json'),
-            'job_id':os.environ.get('SLURM_JOB_ID'),'host':os.uname().nodename,'exit_code':None}
+            'mpi_options':list(mpi_options),
+            'processor_grid':processor_grid,
+            'job_id':os.environ.get('SLURM_JOB_ID'),'host':os.uname().nodename,'exit_code':None,
+            'hardware_signature':host_hardware(),
+            'hardware_reference':os.environ.get('WRF_HARDWARE_REFERENCE'),
+            'hardware_reports':str(ART/'progress'/('hardware-'+os.environ['SLURM_JOB_ID']))
+                if os.environ.get('WRF_HARDWARE_REFERENCE') and os.environ.get('SLURM_JOB_ID') else None}
     verify.save(dest/'run.json',meta)
     before = time.monotonic()
     with (dest/'launcher.log').open('w') as log:
-        code = subprocess.call(['mpirun','-np',str(ranks),str(executable)],cwd=dest,stdout=log,stderr=subprocess.STDOUT)
+        process_env={**os.environ,'OMP_NUM_THREADS':str(threads)}
+        if threads>1:
+            process_env.update(OMP_DYNAMIC='FALSE',OMP_PLACES='cores',OMP_PROC_BIND='close',OMP_STACKSIZE='64M')
+        code = subprocess.call(['mpirun',*mpi_options,'-np',str(ranks),str(executable)],cwd=dest,env=process_env,stdout=log,stderr=subprocess.STDOUT)
     meta.update(exit_code=code,wall_seconds=time.monotonic()-before)
     logs = '\n'.join(p.read_text(errors='replace') for p in dest.glob('rsl.out.0000'))
     timing = [float(v) for v in re.findall(r'Timing for main:.*?:\s+([\d.Ee+-]+)\s+elapsed seconds',logs)]
@@ -233,6 +266,11 @@ def main():
     p.add_argument('--ranks',type=int,default=4)
     p.add_argument('--conus-ranks',type=int,default=16)
     p.add_argument('--against',help='label to compare against, e.g. baseline; use golden after publication')
+    p.add_argument('--golden-name',default='golden',help='sealed reference name used with --against golden')
+    p.add_argument('--rank-map',type=Path,help='JSON map of every selected case to its MPI rank count')
+    p.add_argument('--mpi-bind-to',help='explicit mpirun binding; provide together with --mpi-map-by')
+    p.add_argument('--mpi-map-by',help='explicit mpirun mapping; provide together with --mpi-bind-to')
+    p.add_argument('--processor-grid',nargs=2,type=int,help='explicit nproc_x nproc_y; product must equal ranks')
     p.add_argument('--install-ideal',type=Path)
     p.add_argument('--install-real',type=Path)
     args = p.parse_args()
@@ -241,14 +279,21 @@ def main():
         raise RuntimeError('branch must remain perf/wrf-cpu')
     if not re.fullmatch(r'[A-Za-z0-9_-]+',args.label):
         raise ValueError('label must contain only letters, numbers, underscores or hyphens')
+    ranks = json.loads(args.rank_map.read_text()) if args.rank_map else {
+        case:args.conus_ranks if case=='conus12' else args.ranks for case in args.cases}
+    if any(case not in ranks or type(ranks[case]) is not int or ranks[case]<1 for case in args.cases):
+        p.error('rank map requires a positive integer for every selected case')
+    if bool(args.mpi_bind_to) != bool(args.mpi_map_by):
+        p.error('provide --mpi-bind-to and --mpi-map-by together')
+    mpi_options = ['--bind-to',args.mpi_bind_to,'--map-by',args.mpi_map_by,'--report-bindings'] if args.mpi_bind_to else []
     if args.against=='golden':
         from audit import audit
-        audit(ART)
+        audit(ART,args.golden_name)
     for case in args.cases:
         for tier in args.tiers:
-            directory = run_case(case,tier,args.label,args.conus_ranks if case=='conus12' else args.ranks,args.install_ideal,args.install_real)
+            directory = run_case(case,tier,args.label,ranks[case],args.install_ideal,args.install_real,mpi_options,args.processor_grid)
             if args.against and tier!='restart':
-                ref = ART/'golden'/case/tier if args.against=='golden' else ART/'runs'/args.against/case/tier
+                ref = ART/args.golden_name/case/tier if args.against=='golden' else ART/'runs'/args.against/case/tier
                 result = verify.compare(directory,ref)
                 verify.save(directory/'compare.json',json.loads(json.dumps(result,default=lambda x:x.item())))
                 print(json.dumps({'case':case,'tier':tier,'comparison':args.against,'passed':result['passed']}),flush=True)

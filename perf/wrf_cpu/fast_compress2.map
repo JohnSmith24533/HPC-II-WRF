@@ -1,0 +1,4 @@
+{
+  global: compress2;
+  local: *;
+};

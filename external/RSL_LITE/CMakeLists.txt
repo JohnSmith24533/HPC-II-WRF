@@ -22,6 +22,13 @@ target_sources(
                   f_xpose.F90
                   )
 
+# Short GNU rows use constant byte copies. The Fortran dispatcher keeps
+# large OpenMP copies parallel and leaves non-GNU/legacy paths unchanged.
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+  target_sources(${FOLDER_COMPILE_TARGET} PRIVATE pack_ikj.c)
+  target_compile_definitions(${FOLDER_COMPILE_TARGET} PRIVATE RSL_LITE_FAST_IKJ)
+endif()
+
 set_target_properties( 
                       ${FOLDER_COMPILE_TARGET} 
                         PROPERTIES

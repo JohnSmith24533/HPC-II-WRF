@@ -7,11 +7,15 @@ import shutil
 
 import run
 import verify
+from audit import reference_paths
 
 
-def publish(baseline,replay):
+def publish(baseline,replay,name='golden'):
     if baseline==replay:
         raise ValueError('baseline and replay labels must be distinct')
+    dest,seal=reference_paths(run.ART,name)
+    if dest.exists() or seal.exists():
+        raise RuntimeError('reference already exists; publication never overwrites a reference or seal')
     built_hashes={line.split(maxsplit=1)[1].strip():line.split()[0] for line in (run.ART/'baseline/executables.sha256').read_text().splitlines()}
     for case in run.CASES:
         if not (run.ART/'inputs'/case/'inputs.json').is_file():
@@ -19,9 +23,6 @@ def publish(baseline,replay):
         run.initialize(case)
     run.frozen_runtime(False)
     run.frozen_runtime(True)
-    dest=run.ART/'golden'
-    if dest.exists():
-        raise RuntimeError('golden already exists; publication never overwrites a reference')
     records=[]
     for case in run.CASES:
         for label in (baseline,replay):
@@ -47,11 +48,15 @@ def publish(baseline,replay):
             for key in ('executable_sha256','frozen_inputs_sha256','namelist_sha256','ranks','threads','dt','grid'):
                 if bm[key]!=rm[key]:
                     raise RuntimeError(f'baseline/replay provenance differs: {case}/{tier}: {key}')
+            if bm.get('mpi_options',[]) != rm.get('mpi_options',[]):
+                raise RuntimeError(f'baseline/replay MPI placement differs: {case}/{tier}')
+            if bm.get('hardware_signature') != rm.get('hardware_signature'):
+                raise RuntimeError(f'baseline/replay hardware topology differs: {case}/{tier}')
             records.append((case,tier,b))
     # All gates checked current NetCDF values. Publish via a staging directory.
-    staging=run.ART/'golden-staging'
+    staging=run.ART/(name+'-staging')
     staging.mkdir()
-    manifest={'schema':1,'case_spec':run.CASES,'baseline_label':baseline,'replay_label':replay,
+    manifest={'schema':1,'reference_name':name,'case_spec':run.CASES,'baseline_label':baseline,'replay_label':replay,
               'source_commit':(run.ART/'baseline/source-commit.txt').read_text().strip(),
               'comparison':'bitwise, all numeric history fields and reconstructed physical fields',
               'scope':'all five cases, single/short/full, independent rerun and restart',
@@ -80,7 +85,6 @@ def publish(baseline,replay):
         for name in meta['sha256']:
             (run.ART/'runtime'/kind/name).chmod(0o444)
     staging.rename(dest)
-    seal=run.ART/'golden-manifest.sha256'
     seal.write_text(run.digest(dest/'manifest.json')+'\n')
     seal.chmod(0o444)
     print(f'Published {dest}; {len(records)} case/tier references')
@@ -90,5 +94,6 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--baseline',default='baseline')
     p.add_argument('--replay',default='replay')
+    p.add_argument('--name',default='golden',help='separate sealed reference, e.g. scaled-golden; existing references cannot be overwritten')
     a=p.parse_args()
-    publish(a.baseline,a.replay)
+    publish(a.baseline,a.replay,a.name)
