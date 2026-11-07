@@ -63,6 +63,15 @@ class VerificationTests(unittest.TestCase):
             log=d/'rsl.out.0000'; log.write_text(log.read_text().replace('0001-01-01_00:00:12','0001-01-01_00:00:24'))
             self.assertFalse(verify.execution(d)['passed'])
 
+    def test_history_open_error_rejects_success_and_complete_arrays(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d=Path(tmp);self.fixture(d)
+            self.assertTrue(verify.execution(d)['passed'])
+            (d/'rsl.error.0001').write_text('open_hist_w : error opening wrfout_d01_0001-01-01_00:00:24 for writing. -1021\n')
+            result=verify.execution(d)
+            self.assertFalse(result['passed'])
+            self.assertIn('WRF history output could not be opened for writing',result['errors'])
+
     def test_restart_without_initial_history_requires_every_computed_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=Path(tmp); path=self.fixture(d)

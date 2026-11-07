@@ -139,6 +139,8 @@ def execution(directory):
         errors.append('missing SUCCESS COMPLETE WRF')
     if re.search(r'\b(?:nan|infinity|inf|SIGSEGV|SIGFPE|FATAL)\b|segmentation fault|forrtl: severe', logs, re.I):
         errors.append('nonfinite value or fatal runtime error in logs')
+    if re.search(r'\bopen_hist_w\s*:\s*error opening.*for writing',logs,re.I):
+        errors.append('WRF history output could not be opened for writing')
     start = dt.datetime.strptime(meta['start'], STAMP)
     end = dt.datetime.strptime(meta['end'], STAMP)
     steps = sorted(set(re.findall(r'Timing for main:\s*time\s+(\d{4}-\d\d-\d\d_\d\d:\d\d:\d\d)\s+on domain\s+1', logs)))

@@ -1,5 +1,13 @@
 """Reject matching CPU names when NUMA/cache topology differs."""
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
 import hardware
 
@@ -41,6 +49,69 @@ class HardwareTests(unittest.TestCase):
     def test_original_experiment_reference_signature(self):
         document={'experiment':{'lscpu':self.cpu()}}
         self.assertEqual(hardware.reference_signature(document),hardware.signature(self.cpu()))
+
+    def audit_fixture(self,directory):
+        reference=directory/'reference.json'
+        expected=hardware.signature(self.cpu())
+        reference.write_text(json.dumps({'hardware_signature':expected}))
+        report={'host':'node1','job_id':'123','lscpu':self.cpu(),
+                'hardware_signature':expected,'expected_signature':expected,
+                'reference':str(reference.resolve()),
+                'reference_sha256':hashlib.sha256(reference.read_bytes()).hexdigest(),
+                'passed':True,'differences':{}}
+        other=copy.deepcopy(report);other['host']='node2'
+        return reference,[report,other]
+
+    def test_collects_complete_node_reports_without_remote_file_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);reference,reports=self.audit_fixture(directory)
+            reports[0]['padding']='x'*9000
+            completed=[subprocess.CompletedProcess([],0,stdout=json.dumps(r,indent=2)) for r in reports]
+            with patch.dict(os.environ,SLURM_JOB_ID='123',SLURM_JOB_NUM_NODES='2',SLURM_JOB_NODELIST='node[1-2]'), \
+                    patch.object(hardware.subprocess,'check_output',return_value='node1\nnode2\n'), \
+                    patch.object(hardware.subprocess,'run',side_effect=completed) as called:
+                hardware.audit_allocation(reference,directory/'output')
+            self.assertEqual(len(called.call_args_list),2)
+            for index,call in enumerate(called.call_args_list,1):
+                command=call.args[0]
+                self.assertIn('--stdout',command)
+                self.assertNotIn('--output-dir',command)
+                self.assertIn('--nodes=1',command)
+                self.assertIn('--nodelist=node'+str(index),command)
+                self.assertLess(command.index('--nodelist=node'+str(index)),command.index(hardware.sys.executable))
+            self.assertEqual([json.loads((directory/'output'/(r['host']+'.json')).read_text()) for r in reports],reports)
+
+    def test_missing_duplicate_or_unsafe_hosts_cannot_publish_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);reference,reports=self.audit_fixture(directory)
+            unsafe=copy.deepcopy(reports);unsafe[1]['host']='../outside'
+            for values in [reports[:1],[reports[0],reports[0]],unsafe]:
+                with self.subTest(hosts=[r['host'] for r in values]):
+                    completed=[subprocess.CompletedProcess([],0,stdout=json.dumps(r)) for r in values]+[subprocess.CompletedProcess([],0,stdout='')]
+                    with patch.dict(os.environ,SLURM_JOB_ID='123',SLURM_JOB_NUM_NODES='2',SLURM_JOB_NODELIST='node[1-2]'), \
+                            patch.object(hardware.subprocess,'check_output',return_value='node1\nnode2\n'), \
+                            patch.object(hardware.subprocess,'run',side_effect=completed), \
+                            self.assertRaises(RuntimeError):
+                        hardware.audit_allocation(reference,directory/'output')
+                    self.assertFalse((directory/'output').exists())
+
+    def test_report_claims_cannot_hide_wrong_job_reference_or_topology(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp);reference,reports=self.audit_fixture(directory)
+            variants=[]
+            for key,value in [('job_id','124'),('reference_sha256','wrong'),('passed',False)]:
+                changed=copy.deepcopy(reports);changed[1][key]=value;variants.append(changed)
+            changed=copy.deepcopy(reports)
+            changed[1]['lscpu']['lscpu'].append({'field':'NUMA node(s):','data':'8'})
+            variants.append(changed)
+            for values in variants:
+                completed=[subprocess.CompletedProcess([],0,stdout=json.dumps(r)) for r in values]
+                with patch.dict(os.environ,SLURM_JOB_ID='123',SLURM_JOB_NUM_NODES='2',SLURM_JOB_NODELIST='node[1-2]'), \
+                        patch.object(hardware.subprocess,'check_output',return_value='node1\nnode2\n'), \
+                        patch.object(hardware.subprocess,'run',side_effect=completed), \
+                        self.assertRaises(RuntimeError):
+                    hardware.audit_allocation(reference,directory/'output')
+                self.assertFalse((directory/'output').exists())
 
 
 if __name__=='__main__':

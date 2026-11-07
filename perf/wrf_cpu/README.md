@@ -216,7 +216,7 @@ C006（B021 native128）四個 ideal 案例已各通過 single／short／full／
 
 C006 的 CONUS12 short 在十步後有56個變數時間／衍生量比較項目不一致，因此不能建立新的五案正式總分。
 C007（B022）僅恢復 Thompson 原始 GNU O2／x86-64 編譯方式，CONUS12 single 與 short 位元一致；
-full 尚未開始，因保守 quota 可用容量低於14.6GB門檻而停止。這些結果不能取代上節 C005 五案正式成績，
+full 尚未開始，因保守 quota 可用容量低於14.6GB門檻而停止。後續 D021 診斷雖跑完600步，卻出現後半段 HDF 輸出失敗，仍不合格；D023 僅確認前七份可讀歷史場（0–6小時）位元一致。這些結果不能取代上節 C005 五案正式成績，
 也不能混用不同候選的各案最快值計算正式幾何平均。完整紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 [fast_compress2.c](fast_compress2.c) 與 [fast_compress2.map](fast_compress2.map) 是已驗證 B004 的原始來源，
@@ -242,3 +242,5 @@ python perf/wrf_cpu/check_fast_compress2.py --library /tmp/fast-compress2.so \
 
 相容性檢查包含真實原始 CONUS T／P／U／QRAIN shuffle chunks，所有 decoded bytes 必須完全相同；
 壓縮微測資的成績不等同完整 WRF 加速。正式候選仍須獨立通過五案、三次 full 與 restart 的全部檢查。
+
+硬體稽核逐一向實際配置的每個節點取得完整報告，由主節點統一寫入；節點數、job、reference雜湊與CPU／NUMA簽章都必須相符。這只減少計時外的寫入端，不代表模型輸出容量已足夠。`open_hist_w` 寫入開啟失敗即拒絕執行結果，exit0或`SUCCESS COMPLETE WRF`不能覆蓋I/O失敗。
