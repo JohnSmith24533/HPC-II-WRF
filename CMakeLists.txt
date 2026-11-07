@@ -1013,6 +1013,13 @@ apply_target_source_properties(
                                 AS_PROPERTY COMPILE_OPTIONS
                               )
 
+# module_dm.F belongs to WRF_Core; the GNU C helper is provided by RSL_LITE.
+# Legacy/non-GNU builds retain the original patch-to-global loop.
+if ( CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND USE_MPI )
+  set_property( SOURCE external/RSL_LITE/module_dm.F APPEND PROPERTY
+                COMPILE_DEFINITIONS RSL_LITE_FAST_IKJ )
+endif()
+
 # Keep the reference Thompson math for native CPU experiments.  A preferred
 # vector width does not prevent widened double libmvec calls in this source.
 if ( CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND

@@ -295,3 +295,26 @@ C010（同一 B022 模型加 ISA-L）已通過四案24次原始科學驗證並�
 | convrad | 14.138 | 1.546× |
 
 CONUS12 尚缺同版本 full／restart／三次完整計時，因此五案正式幾何平均仍為 C005 的1.1805倍，5倍目標未達成。
+
+
+## 最新 I/O 拷貝候選 C011
+
+B024 僅加快 patch 拼接與 NetCDF 單word轉置，保留所有算術、格式、欄位與輸出工作。
+980項原型檢查與1240項整合／舊路徑檢查通過；精度轉換函式可執行碼未改變。
+C011四組ideal均完成原始single／short／full／restart與三次full，保留193份輸出：
+
+| 案例 | full中位秒 | 相對固定baseline加速 |
+|---|---:|---:|
+| b_wave | 9.850 | 1.726× |
+| quarter_ss | 4.664 | 1.534× |
+| les | 24.950 | 1.403× |
+| convrad | 13.772 | 1.588× |
+
+LES與C010相當；其原始未定義LH checkpoint差異仍獨立列報，其餘欄位保持原始比較。
+CONUS12單步／短程也通過，短程17.919秒僅為診斷；full因可用3.750GB低於原門檻14.600GB而未啟動。
+因此五組正式幾何平均仍為已完整驗證的C005之1.1805×，5×目標未完成。
+
+容量選項與精確唯讀盤點位於工作區
+.wrf-cpu/progress/space-recovery-proposal-v2-20261107.md 與
+.wrf-cpu/experiments/M017-capacity-review/inventory.json。
+未獲明確授權前不執行曾被自動審核拒絕的清理。

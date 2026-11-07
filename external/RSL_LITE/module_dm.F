@@ -3423,7 +3423,29 @@ END
     REAL    , DIMENSION( DS1:DE1,DS2:DE2,DS3:DE3 ) , INTENT(out) :: outbuf
 ! Local
     INTEGER               :: i,j,k,n   ,  icurs
+#ifdef RSL_LITE_FAST_IKJ
+    INTEGER :: copied
+#endif
     icurs = 1
+#ifdef RSL_LITE_FAST_IKJ
+    ! The gathered rank buffers are contiguous; reuse the exact short-row copier.
+    IF (STORAGE_SIZE(0.0) == 32 .OR. STORAGE_SIZE(0.0) == 64) THEN
+      DO n = 1, ntasks
+        IF (ANY(GPATCH(:,2,n) < GPATCH(:,1,n))) CYCLE
+        IF (STORAGE_SIZE(0.0) == 32) THEN
+          CALL rsl_fast_unpack_int_ikj(inbuf(icurs),outbuf, &
+            GPATCH(3,1,n),GPATCH(3,2,n),GPATCH(2,1,n),GPATCH(2,2,n), &
+            GPATCH(1,1,n),GPATCH(1,2,n),DS3,DE3,DS2,DE2,DS1,DE1,copied)
+        ELSE
+          CALL rsl_fast_unpack_lint_ikj(inbuf(icurs),outbuf, &
+            GPATCH(3,1,n),GPATCH(3,2,n),GPATCH(2,1,n),GPATCH(2,2,n), &
+            GPATCH(1,1,n),GPATCH(1,2,n),DS3,DE3,DS2,DE2,DS1,DE1,copied)
+        ENDIF
+        icurs = icurs + copied
+      ENDDO
+      RETURN
+    ENDIF
+#endif
     DO n = 1, ntasks
       DO k = GPATCH( 3,1,n ), GPATCH( 3,2,n )
         DO j = GPATCH( 2,1,n ), GPATCH( 2,2,n )

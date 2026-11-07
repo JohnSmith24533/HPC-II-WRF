@@ -761,34 +761,49 @@ subroutine Transpose(IO,MemoryOrder,di, Field,l1,l2,m1,m2,n1,n2 &
     case ('xzy')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(i,k,j))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(i,k,j))
 #include "transpose.code"
     case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c','0')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(i,j,k))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(i,j,k))
 #include "transpose.code"
     case ('yxz')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,i,k))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(j,i,k))
 #include "transpose.code"
     case ('zxy')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(k,i,j))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(k,i,j))
 #include "transpose.code"
     case ('yzx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,k,i))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(j,k,i))
 #include "transpose.code"
     case ('zyx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(k,j,i))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(k,j,i))
 #include "transpose.code"
     case ('yx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,i,k))
+#undef SFIELD
+#define SFIELD XField(1,XDEX(j,i,k))
 #include "transpose.code"
   end select
   return
 end subroutine Transpose
+#undef SFIELD
 
 subroutine reorder (MemoryOrder,MemO)
   character*(*)     ,intent(in)    :: MemoryOrder
