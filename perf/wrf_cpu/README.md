@@ -317,4 +317,7 @@ CONUS12單步／短程也通過，短程17.919秒僅為診斷；full因可用3.7
 容量選項與精確唯讀盤點位於工作區
 .wrf-cpu/progress/space-recovery-proposal-v2-20261107.md 與
 .wrf-cpu/experiments/M017-capacity-review/inventory.json。
-未獲明確授權前不執行曾被自動審核拒絕的清理。
+使用者已明確核可方案 B；M018 作業2024492完成27項來源封存檔硬連結合併、168份精確成功輸出退役與5個舊建置目錄清理。
+保留來源路徑與內容、所有失敗／中止輸出、既有C011資料、6份raw差異checkpoint及原始參考；逐檔SHA與操作journal可稽核。
+清理後當次保守可用量16.538GB，後續啟動仍重新檢查原14.6GB full／7.1GB restart門檻。
+C012使用C011相同payload與provenance另建CONUS12群組，執行原始完整流程；僅退役核可後新建且所有驗證已通過、已無restart依賴的科學檔案。
