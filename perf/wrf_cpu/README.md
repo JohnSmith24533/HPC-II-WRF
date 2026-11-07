@@ -244,3 +244,54 @@ python perf/wrf_cpu/check_fast_compress2.py --library /tmp/fast-compress2.so \
 壓縮微測資的成績不等同完整 WRF 加速。正式候選仍須獨立通過五案、三次 full 與 restart 的全部檢查。
 
 硬體稽核逐一向實際配置的每個節點取得完整報告，由主節點統一寫入；節點數、job、reference雜湊與CPU／NUMA簽章都必須相符。這只減少計時外的寫入端，不代表模型輸出容量已足夠。`open_hist_w` 寫入開啟失敗即拒絕執行結果，exit0或`SUCCESS COMPLETE WRF`不能覆蓋I/O失敗。
+
+
+[isal_compress2.c](isal_compress2.c) 保存 B023 已實測的 ISA-L adapter 原始碼；使用同一份
+[fast_compress2.map](fast_compress2.map) 限制匯出符號。ISA-L 固定2.32.1，官方來源
+https://github.com/intel/isa-l/archive/refs/tags/v2.32.1.tar.gz，tar SHA256
+`d9f7179ab0e14a3db9b610fac22793854a1435e8423ec9ce07f4cbedc5f92f5e`。
+B023 的231項相容性、12項並行檢查與三項相關上游測試通過；D024 的原始 CONUS10步、414項位元比較及
+實際 NetCDF4 deflate2 設定也通過。這是尚待完整五案驗證的候選壓縮器，C005 的正式成績不變。
+只對 compress2(level=2) 使用 ISA-L level2 zlib wrapper；其餘等級及容量／配置失敗回到原始 zlib。
+B023 真實 chunks 的壓縮時間比既有 libdeflate 快4.30–6.26倍，壓縮大小增加約1.8–9.0%；不能直接換算為 WRF 加速。
+
+先核對並解開官方 tar，令 WRF_ISAL_SOURCE、WRF_ISAL_BUILD 指向獨立來源及建置目錄，再於 compute allocation 執行：
+
+```bash
+source perf/wrf_cpu/env.sh
+cmake -S "$WRF_ISAL_SOURCE" -B "$WRF_ISAL_BUILD" -G Ninja \
+  -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DBUILD_SHARED_LIBS=OFF -DISAL_BUILD_TESTS=ON -DISAL_BUILD_PERF_TESTS=OFF \
+  -DISAL_BUILD_ISAL_SHIM=OFF -DCMAKE_PREFIX_PATH="$NETCDF"
+cmake --build "$WRF_ISAL_BUILD" --parallel 8
+ctest --test-dir "$WRF_ISAL_BUILD" --output-on-failure \
+  -R '^(igzip_rand_test|igzip_wrapper_hdr_test|checksum32_funcs_test)$'
+gcc -O3 -std=c11 -Wall -Wextra -Werror -fPIC -shared perf/wrf_cpu/isal_compress2.c \
+  "$WRF_ISAL_BUILD/libisal.a" -I"$WRF_ISAL_SOURCE/include" -I"$NETCDF/include" \
+  -pthread -ldl -Wl,--version-script=perf/wrf_cpu/fast_compress2.map -o /tmp/isal-compress2.so
+python perf/wrf_cpu/check_fast_compress2.py --library /tmp/isal-compress2.so --backend-name isal \
+  --input "$WRF_CPU_ARTIFACTS/scaled-golden/conus12/full/wrfout_d01_2019-11-26_21:00:00" \
+  --report /tmp/isal-compress2-compatibility.json
+```
+
+`candidate_run.py --retain-outputs` 保留全部驗證後的科學輸出，並將此政策寫入結果；C008／C009 的診斷額外禁止呼叫任何退役函式。
+每次候選仍必須使用獨立名稱，保留失敗紀錄，不得以壓縮元件或短測試替代完整模型與 restart。
+
+
+D026 以同一個原始執行檔的 S006 baseline／獨立 replay 實證：乾 LES 兩個 checkpoint
+皆只有未定義的 `LH` 位元不同，其餘變數相同。封存 manifest 的原始數值比較範圍為全部 history／
+重建量與 restart 軌跡；LH 僅移出 history，仍完整寫入 checkpoint。後續候選保留此原始比較範圍，
+額外 raw checkpoint 報告會明列 LES LH 的失敗，不宣稱完整 checkpoint 全位元相同；其他 raw checkpoint
+欄位、schema 與 filter 差異仍會阻擋診斷。C009 convrad 三次 full 中位14.072秒、相對固定基準1.554倍，
+已通過含完整 checkpoint 的各層檢查；C010 四案各三次 full 與原始 single／short／restart 已通過，不計入五案正式總分。
+
+C010（同一 B022 模型加 ISA-L）已通過四案24次原始科學驗證並保留193份輸出：
+
+| 案例 | full 中位秒 | 相對固定 baseline 加速 |
+|---|---:|---:|
+| b_wave | 10.296 | 1.651× |
+| quarter_ss | 4.743 | 1.509× |
+| les | 24.947 | 1.403× |
+| convrad | 14.138 | 1.546× |
+
+CONUS12 尚缺同版本 full／restart／三次完整計時，因此五案正式幾何平均仍為 C005 的1.1805倍，5倍目標未達成。

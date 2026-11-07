@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--selection', type=Path, default=run.ART/'progress/S006-winners.json')
     parser.add_argument('--reference-name', default='scaled-golden')
     parser.add_argument('--repetitions', type=int, default=3)
+    parser.add_argument('--retain-outputs', action='store_true',
+                        help='keep all scientific outputs after verification')
     args = parser.parse_args()
     args.install = args.install.resolve()
     if not re.fullmatch(r'C\d{3}-[A-Za-z0-9_-]+', args.label) or args.repetitions < 3:
@@ -69,6 +71,7 @@ def main():
             'created_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
             'reference_name': args.reference_name, 'candidate_provenance': provenance,
             'selection_sha256': run.digest(args.selection), 'repetitions': args.repetitions,
+            'outputs_retained': args.retain_outputs,
             'primary_metric': 'complete WRF wall-clock seconds / verified completed timesteps'}
     rows, scores = [], {}
 
@@ -132,10 +135,11 @@ def main():
                     rows.append(row); save()
                     if tier == 'full':
                         full = dest; times.append(seconds)
-                    elif tier == 'short':
+                    elif tier == 'short' and not args.retain_outputs:
                         row['retired_output_bytes'] = retire_scaling_outputs.retire(dest); save()
                 # First full checkpoints must survive until its restart has passed.
-                rows[-1]['retired_full_output_bytes'] = retire_scaling_outputs.retire(full); save()
+                if not args.retain_outputs:
+                    rows[-1]['retired_full_output_bytes'] = retire_scaling_outputs.retire(full); save()
             median = statistics.median(times)
             scores[case] = {'repetitions': len(times), 'wall_seconds_per_timestep': times,
                             'median_wall_seconds_per_timestep': median,
