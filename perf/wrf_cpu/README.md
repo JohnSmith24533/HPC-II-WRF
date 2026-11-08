@@ -337,3 +337,11 @@ P009已完成目前版本四組ideal的full profiling與原始／候選restart�
 新成功輸出已依核可政策留存SHA／proof journal後退役，raw差異checkpoint保留。
 最新實際用量即使不計預留，也只剩約11.93GB，低於原14.6GB full門檻；
 後續完整CONUS12需增加容量餘裕，原五組正式幾何平均仍為1.1805×。
+
+已補做單執行緒 tiling 控制實驗 M020：固定目前B024／ISA-L、MPI配置與1執行緒，
+四組ideal各測8種設定。可通過全部原始比對的Y向切分在LES、convrad、quarter_ss均較慢；
+b_wave經控制組與候選各3次全新full交錯比較，中位數9.8495秒對9.8661秒，兩個Y向tile亦無收益。
+20組X向切分在單步就不符合原始bitwise比較，失敗資料保留。
+因此仍採tile_sz_x/y=0、numtiles=1；沒有新增通用tiling設定功能。
+M020作業2029433完成，原CONUS12驗證已用相同腳本重新排為C015作業2029537；
+取消的舊待排項目2029417沒有執行模型，不能作為計分證據。
