@@ -189,23 +189,23 @@ Scaling 可用 `--discard-verified-output` 控制暫存用量：完成計時、�
 候選與 baseline 都以完整 wall-clock seconds / verified timestep 計算，包含啟動、初始化、
 原定 history 與兩份 checkpoint。每個案例的原始節點、核心預算與硬體簽章固定。
 
-| 案例 | baseline MPI ranks | baseline s/timestep | C011＋C015 s/timestep | speedup |
+| 案例 | baseline MPI ranks | baseline s/timestep | C021 s/timestep | speedup |
 |---|---:|---:|---:|---:|
-| b_wave | 32 | 0.023615 | 0.013681 | 1.726× |
-| quarter_ss | 16 | 0.023853 | 0.015547 | 1.534× |
-| les | 16 | 0.009725 | 0.006930 | 1.403× |
-| convrad | 80 | 0.030367 | 0.019128 | 1.588× |
-| conus12 | 840 | 0.430314 | 0.187903 | 2.290× |
+| b_wave | 32 | 0.023615 | 0.013732 | 1.720× |
+| quarter_ss | 16 | 0.023853 | 0.015471 | 1.542× |
+| les | 16 | 0.009725 | 0.006945 | 1.400× |
+| convrad | 80 | 0.030367 | 0.018876 | 1.609× |
+| conus12 | 840 | 0.430314 | 0.182201 | 2.362× |
 
-2026-11-09：相同 B024／ISA-L payload 的 C011 ideal 與 C015 real 已通過五案
+2026-11-09：B024模型／ISA-L加上SIMD shuffle之相同C021 payload已通過五案
 single／short／full／restart、每案三次完整計時及原始數值、格式、核心綁定檢查。
-正式幾何平均為 **1.683226×**，5× 目標尚未達成。
-CONUS12 三次完整耗時為114.460751、112.570318、112.741585秒，中位數112.741585秒；
-C015作業2029725成功完成，先前失敗C012的單次計時未使用。
+正式幾何平均為 **1.697812×**，5× 目標尚未達成。
+CONUS12三次完整耗時為109.756126、109.284231、109.320889秒，中位數109.320889秒；
+理想四案作業2030045、CONUS作業2030070及獨立稽核／重算作業2030149均成功完成。
 維持原始REAL4、物理、輸出頻率、兩份checkpoint及NetCDF4壓縮等級2。
-正式證據是 `.wrf-cpu/experiments/C015-io-copy-capacity/summary.json`，
+正式證據是 `.wrf-cpu/experiments/C021-shuffle-locality/summary.json`，
 固定reference manifest SHA為`2582bb6e358acddad8cc709faf5d194b196945d400f7238b646cca45812e3772`。
-先前C005幾何平均1.180476×已由這次完整結果取代，原紀錄仍保留。
+先前C011＋C015的1.683226×與C005的1.180476×原紀錄仍保留；各次完整同payload成績分開計算。
 
 完整CONUS profiling P010（作業2029805）亦成功完成原600步、13份history、兩份checkpoint及原始／候選restart驗證。
 取樣rank0/210/420/839均無遺失樣本；rank0的copy4、memmove、HDF5 shuffle分別佔self CPU樣本10.21%、6.56%、4.69%。
@@ -215,14 +215,14 @@ C015作業2029725成功完成，先前失敗C012的單次計時未使用。
 完整實驗紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 文獻導向補測：M028 convrad反向MPI排列10×8在首步有38項bitwise比較不符，維持8×10；
 M029以目前HDF5濾鏡為基準的shuffle元件通過26,112組檢查，六種chunk元件加速幾何平均4.500413×。
-M029是元件結果；後續B027／C021管線與模型驗證進度見下節，正式五案表須待完整驗證才更新。
+M029是元件結果；後續B027／C021管線與完整模型驗證見下節，元件倍率不直接計入正式五案表。
 
-## Shuffle 候選 C021：管線與四案已驗證，CONUS 待排
+## Shuffle 候選 C021：管線與完整五案已驗證
 
 B027已將M029 kernel接入目前HDF5。72個NetCDF變數可由原庫／候選庫交叉讀回，
 raw bits、schema、chunks與filters一致；163個實際儲存的壓縮chunk bytes也完全相同。
-C021保留原B024模型與ISA-L，僅加入此shuffle adapter；四案各三次完整計時及原始single／short／restart均通過。
-獨立稽核涵蓋24階段的數值、格式、所有rank綁定、實際後端與成功輸出退役證據，7份raw差異LES LH checkpoint保留。
+C021保留原B024模型與ISA-L，僅加入此shuffle adapter；五案各三次完整計時及原始single／short／restart均通過。
+獨立稽核涵蓋30階段的數值、格式、所有rank綁定、實際後端與成功輸出退役證據，7份raw差異LES LH checkpoint保留。
 
 | 案例 | C021 full中位秒 | 相對固定原始baseline加速 |
 |---|---:|---:|
@@ -230,12 +230,14 @@ C021保留原B024模型與ISA-L，僅加入此shuffle adapter；四案各三次�
 | quarter_ss | 4.641248 | 1.541837× |
 | les | 25.002475 | 1.400317× |
 | convrad | 13.590869 | 1.608719× |
+| conus12 | 109.320889 | 2.361746× |
 
 相對C011舊候選，convrad／quarter_ss觀察到約1.33%／0.49%改善，LES／b_wave則約慢0.21%／0.37%。
-這些是不同完整驗證群組的觀察值，尚未建立相對舊候選的穩定通用收益。
-CONUS同payload的原九節點完整驗證作業2030070已提交；2026-11-09 10:24時為PENDING(Resources)，
-排程器預估17:52:12開始，預估可能變動。完成後獨立稽核與原始scorer才可建立新的五案總分。
-目前正式總分仍為上節C011＋C015之1.683226×，不能混用C021與舊候選的各案最快值。
+CONUS相對前候選觀察到3.129%改善，五案正式幾何平均相對前候選增加0.867%。
+這些是不同完整驗證群組的觀察值，尚未建立相對舊候選的穩定通用收益，也未進行新的配對統計推論。
+CONUS作業2030070實際在10:34:25開始、18:07後成功完成，早於先前可變的17:52預估；
+既有監看程序接續提交2030149，六秒完成獨立real稽核與原scorer重算，沒有取消／重排模型。
+目前正式總分為上節C021的1.697812×，沒有混用舊候選的各案最快值。
 
 可重現原始碼為 [fast_shuffle4.c](fast_shuffle4.c) 與 [fast_shuffle4.map](fast_shuffle4.map)。
 獨立C檔和實測B027 adapter＋kernel的預處理translation unit逐byte相同，證據在
@@ -261,13 +263,13 @@ gcc -std=c11 -Wall -Wextra -Werror -O3 -g -fPIC -shared \
 
 實際驗證候選使用B027封存的`shuffle.so`，SHA為
 `9bbd82012696389b84e11dbba33a89269b86bb3254ea3237998f0821273a9938`；
-重建後的binary仍需重新檢查相容性與payload，不能直接替換正在驗證的執行檔。
+重建後的binary仍需重新檢查相容性與payload，不能直接替換已驗證的執行檔。
 完整原始紀錄與成功／失敗輸出政策見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 
 ## 候選推進歷程與可重現壓縮器來源
 
-以下C006至C012敘述保留各階段當時的結果；最新正式成績以上節C011＋C015為準。
+以下C006至C012敘述保留各階段當時的結果；最新正式成績以上節C021為準。
 
 C006（B021 native128）四個 ideal 案例已各通過 single／short／full／restart 與三次完整計時：
 
