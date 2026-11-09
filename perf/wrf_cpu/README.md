@@ -213,6 +213,9 @@ C015作業2029725成功完成，先前失敗C012的單次計時未使用。
 報告為 `.wrf-cpu/experiments/C016-current-conus-full-profile-r01-p840/analysis.json`，profiling時間不計分。
 文獻條件、適用性與後續實驗取捨見 [PAPER_REVIEW.md](PAPER_REVIEW.md)；
 完整實驗紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
+文獻導向補測：M028 convrad反向MPI排列10×8在首步有38項bitwise比較不符，維持8×10；
+M029以目前HDF5濾鏡為基準的shuffle元件通過26,112組檢查，六種chunk元件加速幾何平均4.500413×。
+M029尚未整合實際HDF5管線與完整WRF，故不更新上表正式成績。
 
 
 ## 候選推進歷程與可重現壓縮器來源

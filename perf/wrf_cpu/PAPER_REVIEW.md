@@ -27,6 +27,15 @@ M026實測yield政策也沒有穩定通用改善。這些占比不是全模型wa
 廣泛增加SIMD寬度、copy loop unroll與serial tiling已分別被M021、M023／M025、M020否決，沒有新證據時不重跑。
 獨立IPO／LTO建置B025僅是待驗證的編譯候選，原始Thompson編譯與禁止FMA條件仍需保留；不假定它能帶來5×。
 
+已依資料區域性方向完成M029 shuffle元件測試：使用目前實際HDF5 builtin filter為控制組，
+以128bit整數指令重排4byte元素，其他大小、參數與反向操作沿用原函式。
+ASAN／UBSAN與O3兩種模式合計26,112組位元、反轉、特殊浮點位元及未對齊／哨兵檢查通過。
+六種chunk大小各五次交錯量測，加速4.344–4.770×，元件幾何平均4.500413×；
+正式CONUS T／P／QRAIN與U chunk的6,232,800／6,262,200bytes分別為4.348845／4.344041×。
+這證明此資料搬移路徑值得整合測試；尚未替換HDF5登錄或執行完整WRF，不能當作整體4.5×。
+原始碼、raw計時、sanitizer、實際SSE指令、原HDF5連結與獨立重算證據在
+`.wrf-cpu/experiments/M029-shuffle-locality/`。
+
 ## M027：固定 ranks 的合法分解盤點
 
 本版 `share/module_check_a_mundo.F` 以整數除法檢查 `e_we/nproc_x >= 10` 且 `e_sn/nproc_y >= 10`。
