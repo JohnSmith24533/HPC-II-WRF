@@ -189,21 +189,35 @@ Scaling 可用 `--discard-verified-output` 控制暫存用量：完成計時、�
 候選與 baseline 都以完整 wall-clock seconds / verified timestep 計算，包含啟動、初始化、
 原定 history 與兩份 checkpoint。每個案例的原始節點、核心預算與硬體簽章固定。
 
-| 案例 | baseline MPI ranks | baseline s/timestep | C005 s/timestep | speedup |
+| 案例 | baseline MPI ranks | baseline s/timestep | C011＋C015 s/timestep | speedup |
 |---|---:|---:|---:|---:|
-| b_wave | 32 | 0.023615 | 0.019216 | 1.229× |
-| quarter_ss | 16 | 0.023853 | 0.022552 | 1.058× |
-| les | 16 | 0.009725 | 0.008287 | 1.174× |
-| convrad | 80 | 0.030367 | 0.026565 | 1.143× |
-| conus12 | 840 | 0.430314 | 0.327340 | 1.315× |
+| b_wave | 32 | 0.023615 | 0.013681 | 1.726× |
+| quarter_ss | 16 | 0.023853 | 0.015547 | 1.534× |
+| les | 16 | 0.009725 | 0.006930 | 1.403× |
+| convrad | 80 | 0.030367 | 0.019128 | 1.588× |
+| conus12 | 840 | 0.430314 | 0.187903 | 2.290× |
 
-C005 已通過五個案例的 single／short／full／restart，以及每案三次完整計時；幾何平均為 **1.180476×**，5× 目標尚未達成。
-成績對應封存的 B009 O2 執行檔（短列 halo 原始位元複製、原有 TKE limiter 的正零 tie）與
-B004 無損壓縮器。正式證據是 `.wrf-cpu/experiments/C005-portable-pack/summary.json`；
-後續通訊、背景輸出與元件實驗見 [EXPERIMENTS.md](EXPERIMENTS.md)，診斷或取樣計時不列入此表。
+2026-11-09：相同 B024／ISA-L payload 的 C011 ideal 與 C015 real 已通過五案
+single／short／full／restart、每案三次完整計時及原始數值、格式、核心綁定檢查。
+正式幾何平均為 **1.683226×**，5× 目標尚未達成。
+CONUS12 三次完整耗時為114.460751、112.570318、112.741585秒，中位數112.741585秒；
+C015作業2029725成功完成，先前失敗C012的單次計時未使用。
+維持原始REAL4、物理、輸出頻率、兩份checkpoint及NetCDF4壓縮等級2。
+正式證據是 `.wrf-cpu/experiments/C015-io-copy-capacity/summary.json`，
+固定reference manifest SHA為`2582bb6e358acddad8cc709faf5d194b196945d400f7238b646cca45812e3772`。
+先前C005幾何平均1.180476×已由這次完整結果取代，原紀錄仍保留。
+
+完整CONUS profiling P010（作業2029805）亦成功完成原600步、13份history、兩份checkpoint及原始／候選restart驗證。
+取樣rank0/210/420/839均無遺失樣本；rank0的copy4、memmove、HDF5 shuffle分別佔self CPU樣本10.21%、6.56%、4.69%。
+其他取樣rank有大量MPI broadcast等待；這些是CPU樣本占比，不能當作wall time比例或可消除的成本。
+報告為 `.wrf-cpu/experiments/C016-current-conus-full-profile-r01-p840/analysis.json`，profiling時間不計分。
+文獻條件、適用性與後續實驗取捨見 [PAPER_REVIEW.md](PAPER_REVIEW.md)；
+完整實驗紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 
-## 後續候選與可重現壓縮器來源
+## 候選推進歷程與可重現壓縮器來源
+
+以下C006至C012敘述保留各階段當時的結果；最新正式成績以上節C011＋C015為準。
 
 C006（B021 native128）四個 ideal 案例已各通過 single／short／full／restart 與三次完整計時：
 
@@ -294,10 +308,10 @@ C010（同一 B022 模型加 ISA-L）已通過四案24次原始科學驗證並�
 | les | 24.947 | 1.403× |
 | convrad | 14.138 | 1.546× |
 
-CONUS12 尚缺同版本 full／restart／三次完整計時，因此五案正式幾何平均仍為 C005 的1.1805倍，5倍目標未達成。
+截至C010階段，CONUS12尚缺同版本full／restart／三次完整計時，當時五案正式幾何平均仍為C005的1.1805倍。
 
 
-## 最新 I/O 拷貝候選 C011
+## I/O 拷貝候選 C011 與後續 real 驗證
 
 B024 僅加快 patch 拼接與 NetCDF 單word轉置，保留所有算術、格式、欄位與輸出工作。
 980項原型檢查與1240項整合／舊路徑檢查通過；精度轉換函式可執行碼未改變。
@@ -312,7 +326,7 @@ C011四組ideal均完成原始single／short／full／restart與三次full，保
 
 LES與C010相當；其原始未定義LH checkpoint差異仍獨立列報，其餘欄位保持原始比較。
 CONUS12單步／短程也通過，短程17.919秒僅為診斷；full因可用3.750GB低於原門檻14.600GB而未啟動。
-因此五組正式幾何平均仍為已完整驗證的C005之1.1805×，5×目標未完成。
+這是C011當時未能建立五案新總分的原因；後續相同payload的C015已完整通過，最新結果見上節。
 
 容量選項與精確唯讀盤點位於工作區
 .wrf-cpu/progress/space-recovery-proposal-v2-20261107.md 與
@@ -335,8 +349,8 @@ P009已完成目前版本四組ideal的full profiling與原始／候選restart�
 目前copy4、memmove與動力計算仍值得進一步量測。報告位於
 .wrf-cpu/experiments/P009-current-ideal-profile-setup/analysis.json。
 新成功輸出已依核可政策留存SHA／proof journal後退役，raw差異checkpoint保留。
-最新實際用量即使不計預留，也只剩約11.93GB，低於原14.6GB full門檻；
-後續完整CONUS12需增加容量餘裕，原五組正式幾何平均仍為1.1805×。
+當時實際用量即使不計預留，也只剩約11.93GB，低於原14.6GB full門檻。
+容量恢復後C015已成功完成；這個歷史容量讀數不代表目前剩餘容量。
 
 已補做單執行緒 tiling 控制實驗 M020：固定目前B024／ISA-L、MPI配置與1執行緒，
 四組ideal各測8種設定。可通過全部原始比對的Y向切分在LES、convrad、quarter_ss均較慢；
