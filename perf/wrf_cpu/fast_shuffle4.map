@@ -1,0 +1,4 @@
+{
+  global: H5Z_SHUFFLE;
+  local: *;
+};

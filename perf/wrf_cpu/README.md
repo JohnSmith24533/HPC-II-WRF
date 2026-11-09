@@ -215,7 +215,54 @@ C015作業2029725成功完成，先前失敗C012的單次計時未使用。
 完整實驗紀錄見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 文獻導向補測：M028 convrad反向MPI排列10×8在首步有38項bitwise比較不符，維持8×10；
 M029以目前HDF5濾鏡為基準的shuffle元件通過26,112組檢查，六種chunk元件加速幾何平均4.500413×。
-M029尚未整合實際HDF5管線與完整WRF，故不更新上表正式成績。
+M029是元件結果；後續B027／C021管線與模型驗證進度見下節，正式五案表須待完整驗證才更新。
+
+## Shuffle 候選 C021：管線與四案已驗證，CONUS 待排
+
+B027已將M029 kernel接入目前HDF5。72個NetCDF變數可由原庫／候選庫交叉讀回，
+raw bits、schema、chunks與filters一致；163個實際儲存的壓縮chunk bytes也完全相同。
+C021保留原B024模型與ISA-L，僅加入此shuffle adapter；四案各三次完整計時及原始single／short／restart均通過。
+獨立稽核涵蓋24階段的數值、格式、所有rank綁定、實際後端與成功輸出退役證據，7份raw差異LES LH checkpoint保留。
+
+| 案例 | C021 full中位秒 | 相對固定原始baseline加速 |
+|---|---:|---:|
+| b_wave | 9.886754 | 1.719766× |
+| quarter_ss | 4.641248 | 1.541837× |
+| les | 25.002475 | 1.400317× |
+| convrad | 13.590869 | 1.608719× |
+
+相對C011舊候選，convrad／quarter_ss觀察到約1.33%／0.49%改善，LES／b_wave則約慢0.21%／0.37%。
+這些是不同完整驗證群組的觀察值，尚未建立相對舊候選的穩定通用收益。
+CONUS同payload的原九節點完整驗證作業2030070已提交；2026-11-09 10:24時為PENDING(Resources)，
+排程器預估17:52:12開始，預估可能變動。完成後獨立稽核與原始scorer才可建立新的五案總分。
+目前正式總分仍為上節C011＋C015之1.683226×，不能混用C021與舊候選的各案最快值。
+
+可重現原始碼為 [fast_shuffle4.c](fast_shuffle4.c) 與 [fast_shuffle4.map](fast_shuffle4.map)。
+獨立C檔和實測B027 adapter＋kernel的預處理translation unit逐byte相同，證據在
+`.wrf-cpu/experiments/B027-shuffle-adapter/canonical-source-audit.json`。
+此候選使用目前固定HDF5的私有descriptor符號；執行時保留原descriptor參數callback與讀取路徑，
+只有4byte寫入重排使用已檢查的SSE4.1，其他大小／小buffer／reverse仍使用原函式。
+它未設為預設執行政策；使用時需保留已驗證的HDF5 ABI與payload鎖定。
+
+在compute allocation中，以現有env及同一設定建置到新的輸出路徑：
+
+```bash
+source perf/wrf_cpu/env.sh
+shuffle_prefix="$PWD/.wrf-cpu/env"
+shuffle_output="$PWD/.wrf-cpu/experiments/B027-shuffle-adapter/canonical-shuffle.so"
+test ! -e "$shuffle_output"
+gcc -std=c11 -Wall -Wextra -Werror -O3 -g -fPIC -shared \
+  -I"$shuffle_prefix/include" perf/wrf_cpu/fast_shuffle4.c \
+  -L"$shuffle_prefix/lib" -Wl,--no-as-needed -lhdf5 -Wl,--as-needed \
+  -Wl,-rpath,"$shuffle_prefix/lib" \
+  -Wl,--version-script=perf/wrf_cpu/fast_shuffle4.map -Wl,-z,defs -ldl \
+  -o "$shuffle_output"
+```
+
+實際驗證候選使用B027封存的`shuffle.so`，SHA為
+`9bbd82012696389b84e11dbba33a89269b86bb3254ea3237998f0821273a9938`；
+重建後的binary仍需重新檢查相容性與payload，不能直接替換正在驗證的執行檔。
+完整原始紀錄與成功／失敗輸出政策見 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 
 ## 候選推進歷程與可重現壓縮器來源
